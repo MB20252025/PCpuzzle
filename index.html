@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>Hanoi · Adjustable Overlay</title>
+  <style>
+    /* ----- reset & full‑page background ----- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      min-height: 100vh;
+      background: url('pcpuzz.jpg') no-repeat center center fixed;
+      background-size: cover;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+    }
+
+    /* ----- CSS custom properties for positioning ----- */
+    :root {
+      --gx: 0px;
+      --gy: 0px;
+      --gs: 1;
+      --bx: 0px;
+      --by: 0px;
+      --bs: 1;
+      --tx: 0px;
+      --ty: 0px;
+      --ts: 1;
+    }
+
+    /* ----- puzzle container – now transformable ----- */
+    .puzzle-container {
+      position: relative;
+      width: 86vmin;
+      min-height: 60vmin;
+      background: rgba(10, 10, 10, 0.75);
+      backdrop-filter: blur(2px);
+      border-radius: 2vmin;
+      padding: 2vmin 2vmin 0 2vmin;
+      box-shadow: 0 0 30px rgba(0,0,0,0.6);
+      color: #b3ffb3;
+      font-size: 2.2vmin;
+      transform: translate(var(--gx), var(--gy)) scale(var(--gs));
+      transform-origin: center center;
+      transition: transform 0.05s linear;
+    }
+
+    /* ----- Hanoi form (discs & poles) – unchanged ----- */
+    .discs {
+      position: relative;
+      display: flex;
+      flex-flow: column wrap;
+      justify-content: flex-end;
+      margin: 10vmin auto 0;
+      width: 90vmin;
+      height: 35vmin;
+    }
+
+    label, input {
+      position: absolute;
+      top: -10vmin;
+      margin: 0;
+      border: 0;
+      padding: 0;
+      width: 30vmin;
+      height: 52.5vmin;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    input:nth-child(6n + 2),
+    input:checked + input + input + label { left: 0; }
+    input:nth-child(6n + 3),
+    input:checked + input + label { left: 30vmin; }
+    input:nth-child(6n + 4),
+    input:checked + label { left: 60vmin; }
+
+    label, input:hover,
+    input[readonly]:focus + input,
+    input[readonly]:focus + input + input,
+    input[readonly]:focus + input + input + input {
+      pointer-events: initial;
+    }
+    input[readonly],
+    input:nth-child(6n + 2):checked ~ input:nth-child(6n + 2),
+    input:nth-child(6n + 3):checked ~ input:nth-child(6n + 3),
+    input:nth-child(6n + 4):checked ~ input:nth-child(6n + 4) {
+      pointer-events: none;
+    }
+
+    #one ~ input, #one ~ label { z-index: 6; }
+    #two ~ input, #two ~ label { z-index: 5; }
+    #three ~ input, #three ~ label { z-index: 4; }
+    #four ~ input, #four ~ label { z-index: 3; }
+    #five ~ input, #five ~ label { z-index: 2; }
+    #six ~ input, #six ~ label { z-index: 1; }
+
+    input#zero { z-index: 7; }
+    input#zero:focus { pointer-events: none; }
+    input[readonly]:focus + input:checked ~ #zero { left: 0; pointer-events: initial; }
+    input[readonly]:focus + input + input:checked ~ #zero { left: 30vmin; pointer-events: initial; }
+    input[readonly]:focus + input + input + input:checked ~ #zero { left: 60vmin; pointer-events: initial; }
+
+    .disc {
+      z-index: 1;
+      border-radius: 1vmin;
+      height: 4vmin;
+      pointer-events: none;
+      transition: order 0.3s step-end;
+    }
+    input:checked + input + input + label + .disc { order: 3; }
+    input:checked + input + label + .disc { order: 6; }
+    input:checked + label + .disc { order: 9; }
+
+    input:focus + input:checked + input + input + label + .disc {
+      order: 1; transition: order 0s; animation: float 3s ease-in-out infinite alternate;
+    }
+    input:focus + input + input:checked + input + label + .disc {
+      order: 4; transition: order 0s; animation: float 3s ease-in-out infinite alternate;
+    }
+    input:focus + input + input + input:checked + label + .disc {
+      order: 7; transition: order 0s; animation: float 3s ease-in-out infinite alternate;
+    }
+    @keyframes float { 50% { transform: translateY(-1vmin); } }
+
+    input:focus + input:hover + input + input + label + .disc,
+    input + input:active + input + input + label + .disc { order: 1; }
+    input:focus + input + input:hover + input + label + .disc,
+    input + input + input:active + input + label + .disc { order: 4; }
+    input:focus + input + input + input:hover + label + .disc,
+    input + input + input + input:active + label + .disc { order: 7; }
+
+    .one { margin: 0 10vmin; width: 10vmin; background: linear-gradient(to right, #5d3a1a, #4a2c13, #3a1f0e); }
+    .two { margin: 0 8vmin; width: 14vmin; background: linear-gradient(to right, #2c3e50, #1e2b3a, #141e2a); }
+    .three { margin: 0 6vmin; width: 18vmin; background: linear-gradient(to right, #7d5e3a, #6b4e2f, #5a3e24); }
+    .four { margin: 0 4vmin; width: 22vmin; background: linear-gradient(to right, #3a3a3a, #2a2a2a, #1a1a1a); }
+    .five { margin: 0 2vmin; width: 26vmin; background: linear-gradient(to right, #2e5e5e, #1f4a4a, #123b3b); }
+    .six { width: 30vmin; background: linear-gradient(to right, #7a2e2e, #5e2323, #471b1b); }
+
+    .spacer { width: 30vmin; height: 1px; flex-grow: 0; pointer-events: none; transition: flex 0.3s; }
+    .separator { width: 0; height: 100%; }
+    .a { order: 2; } .ab { order: 3; } .b { order: 5; } .bc { order: 6; } .c { order: 8; }
+
+    input[readonly]:focus + input:hover ~ .a,
+    input[readonly]:focus + input + input:hover ~ .b,
+    input[readonly]:focus + input + input + input:hover ~ .c { transition: flex 0s; flex-grow: 1; }
+    input[readonly]:focus + input:checked ~ .a,
+    input[readonly]:focus + input + input:checked ~ .b,
+    input[readonly]:focus + input + input + input:checked ~ .c { flex-grow: 1; }
+
+    .win {
+      z-index: 7; position: absolute; left: 0; right: 0; top: -10vmin; bottom: -7.5vmin;
+      color: #a5d6a7; font-family: Arial, sans-serif; font-size: 6vmin; line-height: 17.5vmin;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    input:nth-child(6n + 4):checked ~ input:nth-child(6n + 4):checked ~ input:nth-child(6n + 4):checked ~ input:nth-child(6n + 4):checked ~ input:nth-child(6n + 4):checked ~ input:nth-child(6n + 4):checked ~ .win { opacity: 1; pointer-events: initial; }
+
+    .tower {
+      position: absolute; top: 7.5vmin; border-radius: 1vmin; width: 5vmin; height: 30vmin;
+      background: linear-gradient(to right, #3a3a3a, #2a2a2a, #1a1a1a);
+    }
+    .tower.c { background: linear-gradient(to right, #2e7d32, #1b5e20, #0a3d0a); }
+    .a { left: 12.5vmin; } .b { left: 42.5vmin; } .c { left: 72.5vmin; }
+
+    .bottom {
+      position: relative; display: block; margin: 0 auto; border-radius: 1vmin; width: 95vmin; height: 7.5vmin;
+      background: linear-gradient(to right, rgba(255,255,255,0.1), transparent),
+                  linear-gradient(#555, #444 13%, #777 14.5%, #777 27.5%, #444 29%, #444 42%, #777 43.5%, #666 56.5%, #444 58%, #444 71%, #666 72.5%, #666 85.5%, #444 87%, #555);
+    }
+
+    /* ----- overlays (suspect message & explorer) – now transformable ----- */
+    .overlay-panel {
+      position: absolute;
+      top: 2vmin;
+      left: 2vmin;
+      right: 2vmin;
+      bottom: 2vmin;
+      background: #0f0f0f;
+      border: 2px solid #2a7e2a;
+      border-radius: 1vmin;
+      padding: 3vmin;
+      overflow-y: auto;
+      box-shadow: inset 0 0 5vmin rgba(0,50,0,0.5);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      transform: translate(var(--tx), var(--ty)) scale(var(--ts));
+      transform-origin: top left;
+      transition: transform 0.05s linear;
+    }
+    #suspect-message {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-size: 3vmin;
+      color: #aaffaa;
+      line-height: 1.6;
+    }
+    #suspect-message button {
+      background: #1e4a1e;
+      border: none;
+      color: #b3ffb3;
+      font-size: 4vmin;
+      padding: 2vmin 4vmin;
+      border-radius: 1vmin;
+      margin-top: 5vmin;
+      cursor: pointer;
+      box-shadow: 0 0 1vmin #00cc00;
+    }
+    #suspect-message button:hover { background: #2a6b2a; }
+
+    #explorer {
+      z-index: 50;
+      color: #c0ffc0;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .explorer-header {
+      display: flex;
+      gap: 2vmin;
+      align-items: center;
+      border-bottom: 2px solid #2a7e2a;
+      padding-bottom: 1.5vmin;
+      margin-bottom: 2vmin;
+    }
+    .back-btn {
+      background: #1e3a1e;
+      border: none;
+      color: #aaffaa;
+      font-size: 3vmin;
+      padding: 0.5vmin 2vmin;
+      border-radius: 1vmin;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .back-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .path { font-size: 2.5vmin; color: #88ff88; flex: 1; }
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 2vmin 0;
+      border: 1px solid #1e5a1e;
+      min-height: 20vmin;
+      max-height: 28vmin;
+      overflow-y: auto;
+      background: #0a1a0a;
+      border-radius: 1vmin;
+    }
+    .file-list li {
+      padding: 1.2vmin 2vmin;
+      border-bottom: 1px solid #1e4a1e;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 1.5vmin;
+      font-size: 2.2vmin;
+    }
+    .file-list li:hover { background: #1a3a1a; }
+    .folder-icon::before { content: "📁 "; color: #88ccff; }
+    .file-icon::before { content: "📄 "; color: #ffcc88; }
+    .encrypted-icon::before { content: "🔒 "; color: #ff8888; }
+    .content-area {
+      background: #0a120a;
+      border: 1px solid #1e6a1e;
+      border-radius: 1vmin;
+      padding: 2vmin;
+      margin-top: 2vmin;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 2.2vmin;
+      min-height: 20vmin;
+      max-height: 38vmin;
+      overflow-y: auto;
+    }
+    .hidden-form { display: none !important; }
+    .hidden-buttons { display: none !important; }
+    .hidden { display: none !important; }
+
+    /* ----- buttons – now transformable ----- */
+    .button-panel {
+      display: flex;
+      gap: 4vmin;
+      margin: 4vmin auto 2vmin;
+      justify-content: center;
+      transform: translate(var(--bx), var(--by)) scale(var(--bs));
+      transform-origin: center center;
+      transition: transform 0.05s linear;
+    }
+    .action-btn {
+      border: none;
+      border-radius: 1vmin;
+      width: 30vmin;
+      height: 10vmin;
+      font-size: 3.8vmin;
+      color: #ccc;
+      background: linear-gradient(to right, #2e7d32, #1b5e20);
+      outline: none;
+      cursor: pointer;
+      transition: background 0.3s;
+      box-shadow: 0 0.5vmin 1vmin #000;
+      font-family: Arial, sans-serif;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .action-btn:hover:not(:disabled) {
+      background: linear-gradient(to right, #3e9e43, #2e7d32);
+    }
+    .action-btn:active:not(:disabled) {
+      background: linear-gradient(to right, #1b5e20, #0a3d0a);
+    }
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #2a4a2a;
+    }
+
+    /* ----- adjustment control panel (sticky, draggable via header) ----- */
+    #adjustPanel {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(20, 20, 30, 0.92);
+      backdrop-filter: blur(6px);
+      padding: 16px 20px;
+      border-radius: 14px;
+      color: #ddd;
+      z-index: 9999;
+      width: 240px;
+      font-size: 13px;
+      border: 1px solid #4a7a4a;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.7);
+      user-select: none;
+      transition: opacity 0.2s;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    #adjustPanel .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      cursor: move;
+      font-weight: bold;
+      color: #b3ffb3;
+      border-bottom: 1px solid #2a5a2a;
+      padding-bottom: 6px;
+    }
+    #adjustPanel .header span { cursor: pointer; font-size: 18px; padding: 0 6px; }
+    #adjustPanel label { display: inline-block; width: 45px; color: #aaa; }
+    #adjustPanel input[type="range"] {
+      width: 110px;
+      vertical-align: middle;
+      background: #333;
+      height: 4px;
+      border-radius: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+    #adjustPanel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #4a9a4a;
+      cursor: pointer;
+    }
+    #adjustPanel .val {
+      display: inline-block;
+      width: 40px;
+      text-align: right;
+      color: #b3ffb3;
+      font-size: 12px;
+    }
+    #adjustPanel .ctrl-group {
+      margin-bottom: 6px;
+      padding: 4px 0;
+      border-bottom: 1px solid #2a3a2a;
+    }
+    #adjustPanel .ctrl-group:last-child { border-bottom: none; }
+    #adjustPanel .group-label {
+      font-size: 11px;
+      color: #88aa88;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    #adjustPanel .row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+
+    .toggle-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(30, 30, 40, 0.85);
+      backdrop-filter: blur(4px);
+      border: 1px solid #4a7a4a;
+      color: #b3ffb3;
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 10000;
+      font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: 0.2s;
+    }
+    .toggle-btn:hover { background: #2a4a2a; }
+
+    /* responsive */
+    @media (max-width: 600px) {
+      .puzzle-container { width: 80vmin; min-height: 50vmin; font-size: 2vmin; }
+      .discs { width: 80vmin; height: 30vmin; }
+      .action-btn { width: 25vmin; height: 8vmin; font-size: 3vmin; }
+      #adjustPanel { width: 200px; padding: 12px; bottom: 10px; right: 10px; }
+      #adjustPanel input[type="range"] { width: 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- puzzle container -->
+<div class="puzzle-container" id="puzzleContainer">
+
+  <!-- Hanoi form -->
+  <form id="hanoi-form" class="hidden-form">
+    <div class="discs">
+      <input id="one" type="text" tabindex="-1" readonly>
+      <input name="one" type="radio" tabindex="-1" checked>
+      <input name="one" type="radio" tabindex="-1">
+      <input name="one" type="radio" tabindex="-1">
+      <label for="one"></label>
+      <div class="disc one"></div>
+
+      <input id="two" type="text" tabindex="-1" readonly>
+      <input name="two" type="radio" tabindex="-1" checked>
+      <input name="two" type="radio" tabindex="-1">
+      <input name="two" type="radio" tabindex="-1">
+      <label for="two"></label>
+      <div class="disc two"></div>
+
+      <input id="three" type="text" tabindex="-1" readonly>
+      <input name="three" type="radio" tabindex="-1" checked>
+      <input name="three" type="radio" tabindex="-1">
+      <input name="three" type="radio" tabindex="-1">
+      <label for="three"></label>
+      <div class="disc three"></div>
+
+      <input id="four" type="text" tabindex="-1" readonly>
+      <input name="four" type="radio" tabindex="-1" checked>
+      <input name="four" type="radio" tabindex="-1">
+      <input name="four" type="radio" tabindex="-1">
+      <label for="four"></label>
+      <div class="disc four"></div>
+
+      <input id="five" type="text" tabindex="-1" readonly>
+      <input name="five" type="radio" tabindex="-1" checked>
+      <input name="five" type="radio" tabindex="-1">
+      <input name="five" type="radio" tabindex="-1">
+      <label for="five"></label>
+      <div class="disc five"></div>
+
+      <input id="six" type="text" tabindex="-1" readonly>
+      <input name="six" type="radio" tabindex="-1" checked>
+      <input name="six" type="radio" tabindex="-1">
+      <input name="six" type="radio" tabindex="-1">
+      <label for="six"></label>
+      <div class="disc six"></div>
+
+      <input id="zero" type="text" tabindex="-1" readonly>
+      <div class="spacer a"></div><div class="separator ab"></div>
+      <div class="spacer b"></div><div class="separator bc"></div>
+      <div class="spacer c"></div>
+      <div class="tower a"></div><div class="tower b"></div><div class="tower c"></div>
+      <div class="win">You win! :)</div>
+    </div>
+    <div class="bottom"></div>
+  </form>
+
+  <!-- suspect message overlay -->
+  <div id="suspect-message" class="overlay-panel hidden">
+    <div>“Well done, detective. You actually solved it.<br>Maybe you're not as dull as the rest.<br>I left a little something — a USB drive.<br>Let's see if you can keep up.”</div>
+    <button id="access-usb">► ACCESS USB</button>
+  </div>
+
+  <!-- USB explorer overlay -->
+  <div id="explorer" class="overlay-panel">
+    <div class="explorer-header">
+      <button class="back-btn" id="explorer-back">← BACK</button>
+      <span class="path" id="current-path">Private</span>
+    </div>
+    <ul class="file-list" id="file-list">
+      <li data-name="ledger.enc" data-type="file" class="encrypted-icon"><span>ledger.enc</span></li>
+      <li data-name="unfinished_targets.txt" data-type="file" class="file-icon"><span>unfinished_targets.txt</span></li>
+    </ul>
+    <div class="content-area" id="file-content"><pre style="white-space: pre-wrap; color: #b3ffb3;">🔓 DECRYPTED LEDGER 🔓
+
+You found the keystone. Very well.
+
+The real planning notes:
+
+- The first three jobs (Downtown Crown, Eastside Gems, Royal Oak) were tests.
+- The next target is NOT among the unfinished targets. It's a new location: 
+  "GRAND AVENUE VAULT" — they installed a new camera system last month, but the rotation pattern is exactly 73 seconds (like Eastside). The blind spot appears at 2:17 AM for 11 seconds.
+
+- I've left a more detailed blueprint inside the "Private" folder under the name "vault_blueprint.txt". But that file is also encrypted with the same password. (Just kidding — it's plain text now that you're in.)
+
+- Remember: patterns repeat. The tower taught you that.
+
+— C.</pre></div>
+  </div>
+</div>
+
+<!-- buttons -->
+<div class="button-panel hidden-buttons" id="buttonPanel">
+  <button class="action-btn" id="newGameBtn">⟲ NEW GAME</button>
+  <button class="action-btn" id="solutionBtn">⚙ SOLUTION</button>
+</div>
+
+<!-- ===== ADJUSTMENT CONTROLS ===== -->
+<div id="adjustPanel">
+  <div class="header">
+    <span>⚙️ POSITION ADJUST</span>
+    <span id="closePanel" style="cursor:pointer;">✖</span>
+  </div>
+
+  <div class="ctrl-group">
+    <div class="group-label">🎯 Game (Poles &amp; Discs)</div>
+    <div class="row"><label>X</label><input type="range" id="gx" min="-500" max="500" value="0"><span class="val" id="gxVal">0</span></div>
+    <div class="row"><label>Y</label><input type="range" id="gy" min="-500" max="500" value="0"><span class="val" id="gyVal">0</span></div>
+    <div class="row"><label>Scale</label><input type="range" id="gs" min="50" max="150" value="100"><span class="val" id="gsVal">1.00</span></div>
+  </div>
+
+  <div class="ctrl-group">
+    <div class="group-label">🔘 Buttons (New Game / Solution)</div>
+    <div class="row"><label>X</label><input type="range" id="bx" min="-500" max="500" value="0"><span class="val" id="bxVal">0</span></div>
+    <div class="row"><label>Y</label><input type="range" id="by" min="-500" max="500" value="0"><span class="val" id="byVal">0</span></div>
+    <div class="row"><label>Scale</label><input type="range" id="bs" min="50" max="150" value="100"><span class="val" id="bsVal">1.00</span></div>
+  </div>
+
+  <div class="ctrl-group">
+    <div class="group-label">📄 Overlay Text (USB / Suspect)</div>
+    <div class="row"><label>X</label><input type="range" id="tx" min="-500" max="500" value="0"><span class="val" id="txVal">0</span></div>
+    <div class="row"><label>Y</label><input type="range" id="ty" min="-500" max="500" value="0"><span class="val" id="tyVal">0</span></div>
+    <div class="row"><label>Scale</label><input type="range" id="ts" min="50" max="150" value="100"><span class="val" id="tsVal">1.00</span></div>
+  </div>
+  <div style="font-size:10px; color:#666; margin-top:8px; text-align:center;">drag sliders to reposition | values in pixels</div>
+</div>
+
+<!-- toggle button to show/hide the panel -->
+<button class="toggle-btn" id="togglePanelBtn">⚙️ SHOW CONTROLS</button>
+
+<script>
+  (function() {
+    // ----- GAME LOGIC (unchanged) -----
+    const form = document.getElementById('hanoi-form');
+    const suspectMsgDiv = document.getElementById('suspect-message');
+    const explorerDiv = document.getElementById('explorer');
+    const accessBtn = document.getElementById('access-usb');
+    const newGameBtn = document.getElementById('newGameBtn');
+    const solutionBtn = document.getElementById('solutionBtn');
+    const buttonPanel = document.getElementById('buttonPanel');
+
+    let winDisplayed = false;
+    let explorerVisible = false;
+    let solving = false;
+    let solveInterval = null;
+    let moveList = [];
+    let currentMoveIndex = 0;
+
+    const fileSystem = {
+      "read_me.txt": `Detective,
+
+If you're reading this, you've proven you can think logically and patiently — the Tower of Hanoi demands nothing less. Inside this drive you'll find a year's worth of observations. Some stores were successfully visited, others were merely... studied. 
+
+I enjoy a worthy opponent. Figure out which jobs are already done, and more importantly — which one is next. The clock is ticking.
+
+— C.`,
+      "Evidence": {
+        "downtown_crown.txt": `LOCATION: Downtown Crown Jewelers, 412 Main St.
+SECURITY: Glass display cases, alarm system (DSC PC1832), one guard on weekdays.
+WEAKNESS: Guard takes a smoke break at 2:17 AM for ~9 minutes. Rear door lock outdated (Schlage).
+STAFF: Manager leaves at 6:30 PM, cleaning crew 11:15 PM - 11:40 PM.
+STATUS: COMPLETED. No complications.`,
+        "eastside_gems.txt": `LOCATION: Eastside Gems & Co., 87 Elmwood Ave.
+SECURITY: Vault door (AMSEC SL300) with timer lock, cameras (Vista PTZ).
+WEAKNESS: Camera rotates away from service corridor every 73 seconds — 11s window.
+STAFF: Friday closing early (17:00), only two employees.
+STATUS: COMPLETED. Used corridor window.`,
+        "royal_oak.txt": `LOCATION: Royal Oak Watches, 2200 Grand Blvd.
+SECURITY: Bars on windows, motion sensors (Honeywell), safe in back.
+WEAKNESS: Motion sensor offline 3:00-3:05 AM during system test (nightly).
+STAFF: Owner stays until 23:00 on Saturdays.
+STATUS: COMPLETED. Took Rolex shipment.`
+      },
+      "Logs": {
+        "moves.log": `[1] A → C\n[2] A → B\n[3] C → B\n[4] A → C\n[5] B → A\n[6] B → C\n[7] A → C\n-- Pattern repeats everywhere: security routines, human habits, camera sweeps. Find the rhythm, find the gap.`,
+        "camera_delays.log": `Downtown Crown: PTZ camera cycle 47s, blind spot 3s at NE corner.\nEastside Gems: corridor view blocked by flagpole 11:20 - 11:35 nightly.\nRoyal Oak: motion sensor offline window confirmed 3:00-3:05 AM.\nObservation: consistency in gaps — like Hanoi, move by move.`,
+        "blind_spots.txt": `📍 2417 Wilson Ave (abandoned) — no cameras but street light flickers.\n📍 Meridian Mall — loading bay camera rotates, 14s blind every 2min.\n📍 Riverside Plaza — guard does rounds every 34min, takes 4min.\nPatterns within patterns.`
+      },
+      "Private": {
+        "unfinished_targets.txt": `Stores investigated but never attempted:\n\n- Westside Diamonds (new alarm system, uncertain window)\n- Liberty Jewelers (owner lives above, unpredictable presence)\n- Crystal Cove (reinforced door installed mid-survey)\n- Oakwood Pawn (too many pedestrians after 9 PM)\n\nMaybe one of these becomes the next move. Maybe not.`,
+        "ledger.enc": "⛔ ENCRYPTED FILE — PASSWORD REQUIRED ⛔\n(This file will be part of a future puzzle.)"
+      }
+    };
+
+    const hiddenLedgerContent = `🔓 DECRYPTED LEDGER 🔓\n\nYou found the keystone. Very well.\n\nThe real planning notes:\n\n- The first three jobs (Downtown Crown, Eastside Gems, Royal Oak) were tests.\n- The next target is NOT among the unfinished targets. It's a new location: \n  "GRAND AVENUE VAULT" — they installed a new camera system last month, but the rotation pattern is exactly 73 seconds (like Eastside). The blind spot appears at 2:17 AM for 11 seconds.\n\n- I've left a more detailed blueprint inside the "Private" folder under the name "vault_blueprint.txt". But that file is also encrypted with the same password. (Just kidding — it's plain text now that you're in.)\n\n- Remember: patterns repeat. The tower taught you that.\n\n— C.`;
+
+    let currentPath = [];
+    let ledgerUnlocked = false;
+    const fileListEl = document.getElementById('file-list');
+    const fileContentEl = document.getElementById('file-content');
+    const backBtn = document.getElementById('explorer-back');
+    const pathEl = document.getElementById('current-path');
+
+    function getCurrentFolderObj() {
+      let obj = fileSystem;
+      for (let folder of currentPath) {
+        if (obj[folder] && typeof obj[folder] === 'object' && !Array.isArray(obj[folder])) obj = obj[folder];
+        else return null;
+      }
+      return obj;
+    }
+
+    function renderExplorer() {
+      const folderObj = getCurrentFolderObj();
+      if (!folderObj) { currentPath = []; renderExplorer(); return; }
+      pathEl.textContent = currentPath.length ? currentPath.join(' / ') : 'ROOT';
+      backBtn.disabled = currentPath.length === 0;
+      let items = Object.keys(folderObj).filter(key => key !== '__proto__');
+      let folders = [], files = [];
+      items.forEach(key => {
+        if (typeof folderObj[key] === 'object' && !Array.isArray(folderObj[key])) folders.push(key);
+        else files.push(key);
+      });
+      folders.sort(); files.sort();
+      const allItems = folders.map(f => ({ name: f, type: 'folder' })).concat(files.map(f => ({ name: f, type: 'file' })));
+      fileListEl.innerHTML = '';
+      allItems.forEach(item => {
+        const li = document.createElement('li');
+        li.setAttribute('data-name', item.name);
+        li.setAttribute('data-type', item.type);
+        if (item.type === 'folder') li.classList.add('folder-icon');
+        else if (item.name === 'ledger.enc') li.classList.add('encrypted-icon');
+        else li.classList.add('file-icon');
+        li.innerHTML = `<span>${item.name}</span>`;
+        fileListEl.appendChild(li);
+      });
+      fileContentEl.innerHTML = '📁 Select a file to view';
+      ledgerUnlocked = false;
+    }
+
+    function showFileContent(filename) {
+      const folderObj = getCurrentFolderObj();
+      if (!folderObj) return;
+      const content = folderObj[filename];
+      if (filename === 'ledger.enc') {
+        if (ledgerUnlocked) {
+          fileContentEl.innerHTML = `<pre style="white-space: pre-wrap; color: #b3ffb3;">${hiddenLedgerContent}</pre>`;
+        } else {
+          fileContentEl.innerHTML = `<pre style="color: #ff8888;">⛔ ENCRYPTED FILE — Click to unlock</pre>`;
+          setTimeout(() => {
+            let pwd = prompt("Enter password for ledger.enc:");
+            if (pwd && pwd.trim().toLowerCase() === 'keystone') {
+              ledgerUnlocked = true;
+              fileContentEl.innerHTML = `<pre style="white-space: pre-wrap; color: #b3ffb3;">${hiddenLedgerContent}</pre>`;
+            } else {
+              if (pwd !== null) alert("Access denied.");
+              fileContentEl.innerHTML = `<pre style="color: #ff8888;">⛔ ACCESS DENIED — Try again.</pre>`;
+            }
+          }, 50);
+        }
+      } else if (typeof content === 'string') {
+        fileContentEl.innerHTML = `<pre style="white-space: pre-wrap; color: #b3ffb3;">${content}</pre>`;
+      } else {
+        fileContentEl.innerHTML = '⚠️ Cannot display this item.';
+      }
+    }
+
+    fileListEl.addEventListener('click', (e) => {
+      const li = e.target.closest('li');
+      if (!li) return;
+      const name = li.getAttribute('data-name');
+      const type = li.getAttribute('data-type');
+      if (type === 'folder') { currentPath.push(name); renderExplorer(); }
+      else showFileContent(name);
+    });
+
+    backBtn.addEventListener('click', () => {
+      if (currentPath.length > 0) { currentPath.pop(); renderExplorer(); }
+    });
+
+    function allDiscsOnC() {
+      const names = ['one','two','three','four','five','six'];
+      for (let n of names) {
+        const radios = document.getElementsByName(n);
+        if (!radios || radios.length < 3 || !radios[2].checked) return false;
+      }
+      return true;
+    }
+
+    function showSuspectMessage() {
+      if (explorerVisible) return;
+      form.classList.add('hidden-form');
+      suspectMsgDiv.classList.remove('hidden');
+      explorerDiv.classList.add('hidden');
+      buttonPanel.classList.add('hidden-buttons');
+    }
+
+    function showExplorer() {
+      form.classList.add('hidden-form');
+      suspectMsgDiv.classList.add('hidden');
+      explorerDiv.classList.remove('hidden');
+      explorerVisible = true;
+      currentPath = [];
+      renderExplorer();
+      fileContentEl.innerHTML = '📁 Select a file to view';
+    }
+
+    function hideAllOverlays() {
+      form.classList.remove('hidden-form');
+      suspectMsgDiv.classList.add('hidden');
+      explorerDiv.classList.add('hidden');
+      explorerVisible = false;
+      winDisplayed = false;
+      buttonPanel.classList.remove('hidden-buttons');
+    }
+
+    function generateMoves(n, src, aux, dest, moves) {
+      if (n === 1) { moves.push({ disc: 0, to: dest }); return; }
+      generateMoves(n - 1, src, dest, aux, moves);
+      moves.push({ disc: n - 1, to: dest });
+      generateMoves(n - 1, aux, src, dest, moves);
+    }
+
+    function buildMoveList() { let m = []; generateMoves(6, 0, 1, 2, m); return m; }
+
+    function applyMove(move) {
+      const names = ['one','two','three','four','five','six'];
+      const radios = document.getElementsByName(names[move.disc]);
+      if (radios && radios.length > move.to) radios[move.to].checked = true;
+    }
+
+    function startSolution() {
+      if (solving) return;
+      hideAllOverlays();
+      form.reset();
+      moveList = buildMoveList();
+      currentMoveIndex = 0;
+      solving = true;
+      newGameBtn.disabled = true;
+      solutionBtn.disabled = true;
+      solveInterval = setInterval(() => {
+        if (currentMoveIndex >= moveList.length) {
+          clearInterval(solveInterval); solveInterval = null;
+          solving = false;
+          newGameBtn.disabled = false;
+          solutionBtn.disabled = false;
+          if (allDiscsOnC() && !winDisplayed && !explorerVisible) {
+            winDisplayed = true;
+            showSuspectMessage();
+          }
+          return;
+        }
+        applyMove(moveList[currentMoveIndex]);
+        currentMoveIndex++;
+      }, 200);
+    }
+
+    function resetAndStop() {
+      if (solveInterval) { clearInterval(solveInterval); solveInterval = null; }
+      solving = false;
+      newGameBtn.disabled = false;
+      solutionBtn.disabled = false;
+      form.reset();
+      hideAllOverlays();
+    }
+
+    form.addEventListener('change', () => {
+      if (allDiscsOnC() && !winDisplayed && !explorerVisible && !solving) {
+        winDisplayed = true;
+        showSuspectMessage();
+      }
+    });
+
+    accessBtn.addEventListener('click', showExplorer);
+    newGameBtn.addEventListener('click', resetAndStop);
+    solutionBtn.addEventListener('click', () => { if (!solving) startSolution(); });
+
+    hideAllOverlays();
+
+    // =============================================
+    // ----- ADJUSTMENT CONTROLS LOGIC -----
+    // =============================================
+    // Map sliders to CSS custom properties
+    const mapSlider = (id, prop, suffix, displayId, scaleFactor = 1) => {
+      const input = document.getElementById(id);
+      const display = document.getElementById(displayId);
+      if (!input) return;
+      const update = () => {
+        const val = parseFloat(input.value);
+        const finalVal = (val * scaleFactor).toFixed(2);
+        document.documentElement.style.setProperty(prop, finalVal + (suffix || ''));
+        if (display) display.textContent = suffix === '' ? finalVal : Math.round(val);
+      };
+      input.addEventListener('input', update);
+      update();
+    };
+
+    // Game: X, Y (px), Scale (unitless)
+    mapSlider('gx', '--gx', 'px', 'gxVal');
+    mapSlider('gy', '--gy', 'px', 'gyVal');
+    mapSlider('gs', '--gs', '', 'gsVal', 0.01); // 50-150 -> 0.5-1.5
+
+    // Buttons
+    mapSlider('bx', '--bx', 'px', 'bxVal');
+    mapSlider('by', '--by', 'px', 'byVal');
+    mapSlider('bs', '--bs', '', 'bsVal', 0.01);
+
+    // Text (overlays)
+    mapSlider('tx', '--tx', 'px', 'txVal');
+    mapSlider('ty', '--ty', 'px', 'tyVal');
+    mapSlider('ts', '--ts', '', 'tsVal', 0.01);
+
+    // Panel toggle
+    const panel = document.getElementById('adjustPanel');
+    const toggleBtn = document.getElementById('togglePanelBtn');
+    const closePanel = document.getElementById('closePanel');
+
+    const togglePanel = (show) => {
+      panel.style.display = show ? 'block' : 'none';
+      toggleBtn.style.display = show ? 'none' : 'block';
+    };
+
+    toggleBtn.addEventListener('click', () => togglePanel(true));
+    closePanel.addEventListener('click', () => togglePanel(false));
+
+    // default: panel is visible, toggle btn hidden
+    togglePanel(true);
+
+    // Make panel header draggable (simple dragging)
+    const header = panel.querySelector('.header');
+    let isDragging = false;
+    let offX, offY;
+
+    header.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'SPAN' && e.target.id === 'closePanel') return;
+      isDragging = true;
+      const rect = panel.getBoundingClientRect();
+      offX = e.clientX - rect.left;
+      offY = e.clientY - rect.top;
+      panel.style.transition = 'none';
+      panel.style.position = 'fixed';
+      panel.style.bottom = 'auto';
+      panel.style.right = 'auto';
+      panel.style.top = rect.top + 'px';
+      panel.style.left = rect.left + 'px';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      panel.style.left = (e.clientX - offX) + 'px';
+      panel.style.top = (e.clientY - offY) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        panel.style.transition = '';
+      }
+    });
+
+  })();
+</script>
+</body>
+        </html>
